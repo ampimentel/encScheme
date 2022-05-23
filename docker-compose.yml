@@ -1,0 +1,13 @@
+version: "3.9"  # optional since v1.27.0
+services:
+  charm:
+    environment:
+      - SEED=4
+      - PATH_MEASURES=/measures
+    build: ./charm
+    image: charm-test:latest
+    #container_name: charm-measures-script
+    tty: true
+    volumes:
+      - ./measures:/measures
+    #command: "python3 charm/encScheme/encDb.py --seed=$SEED --pathMeasures=$PATH_MEASURES"
