@@ -10,6 +10,8 @@ import pickle
 import argparse
 import random
 from math import ceil
+from os import path
+
 groupObj = PairingGroup('BN254')
 kpabks = CWDWL17(groupObj)
 
@@ -62,7 +64,7 @@ def compareResults(encDb, pk, sk_s, trap, dB, query, storeRes = None):
     if storeRes is not None:
         res = end_bench_dict(groupObj, storeRes)
     res["result"] = True
-    
+
     strExpr = strToPythonExpr(query, lstName="dB")
     #normalResults = eval(strExpr)
     normalResults = [eval(strExpr) for x in dB]
@@ -81,7 +83,7 @@ def writeToFile(encDB, msk, pk, pk_s, sk_s, filename):
     objList = obj1 + [objectToBytes(en, groupObj) for en in encDB]
     with open(filename, mode="wb") as file:
         pickle.dump(objList, file)
-    
+
 def readFromFile(filename):
     with open(filename, mode="rb") as file:
         objList = pickle.load(file)
@@ -95,7 +97,7 @@ def readOriginalFromFile(filename):
     with open(filename, mode="r") as file:
         csv_reader = csv.DictReader(file, delimiter=';')
         dB = [dict(entry) for entry in csv_reader]
-    return dB 
+    return dB
 
 def complex_test():
     parser = argparse.ArgumentParser()
@@ -117,8 +119,8 @@ def complex_test():
     if args.query is not None:
         trapdoor = genTrap(args.query, pk_s, msk)
         print(compareResults(encDb, pk, sk_s, trapdoor, dB, args.query))
-        #expr = "ID = 9 or Info = 3"       
-   
+        #expr = "ID = 9 or Info = 3"
+
 def simple_test():
     expr = "ID = 9 and (Info = 3 or Info = 4)"
     entry = {'ID': '9', 'Info': '5', 'Velocity': '32', 'PositionX': '115.909', 'PostionY': '78.229', 'Time': '407528', 'Sensor 1': '0.221555327', 'Sensor 2': '0.70161049', 'Vehicle Path': 'random string'}
@@ -145,7 +147,7 @@ def doMeasures(inputs, times):
     encDb = encryptDB(db, pk)
     times["encrypt"].append(end_bench_dict(groupObj, inputs, encDb))
 
-    
+
     queries = generateQueries(inputs, 10, ceil(inputs["numCols"] / 2))
 
     for qi in queries:
@@ -156,6 +158,34 @@ def doMeasures(inputs, times):
         res = compareResults(encDb, pk, sk_s, trapdoor, db, qi, {**inputs, **{"query" : qi}})
         times["search"].append(res)
 
+def doMeasuresOne(inputs):
+
+    times = {"setup" : [], "keygen" : [], "encrypt" : [], "genTrap":[], "search" : []}
+    db = dbGenerator(inputs)
+    start_bench(groupObj)
+    (msk, pk) = kpabks.setup()
+    times["setup"].append(end_bench_dict(groupObj, inputs))
+    start_bench(groupObj)
+    (pk_s, sk_s) = kpabks.s_keygen(pk)
+    times["keygen"].append(end_bench_dict(groupObj, inputs))
+    start_bench(groupObj)
+    encDb = encryptDB(db, pk)
+    times["encrypt"].append(end_bench_dict(groupObj, inputs, encDb))
+
+
+    queries = generateQueries(inputs, 10, ceil(inputs["numCols"] / 2))
+
+    for qi in queries:
+        start_bench(groupObj)
+        trapdoor = genTrap(qi, pk_s, msk)
+        times["genTrap"].append(end_bench_dict(groupObj, {**inputs, **{"query" : qi}}, trapdoor))
+        start_bench(groupObj)
+        res = compareResults(encDb, pk, sk_s, trapdoor, db, qi, {**inputs, **{"query" : qi}})
+        times["search"].append(res)
+
+    return times
+
+
 def writeKeysToFiles(times, folder, endFileName=""):
     for key in times.keys():
         with open(folder + "/" + key + endFileName + ".csv", mode="w") as file:
@@ -164,6 +194,36 @@ def writeKeysToFiles(times, folder, endFileName=""):
             for entry in times[key]:
                 writer.writerow(entry)
 
+def writeMeasures(times, folder, endFileName=""):
+    for key in times.keys():
+        if not path.exists(folder + "/" + key + endFileName + ".csv"):
+            with open(folder + "/" + key + endFileName + ".csv", mode="w") as file:
+                writer = csv.DictWriter(file, fieldnames = times[key][0].keys())
+                writer.writeheader()
+        with open(folder + "/" + key + endFileName + ".csv", mode="a") as file:
+            writer = csv.DictWriter(file, fieldnames = times[key][0].keys())
+            for entry in times[key]:
+                writer.writerow(entry)
+
+def readMeasures(times, folder, endFileName=""):
+    for key in times.keys():
+        if path.exists(folder + "/" + key + endFileName + ".csv"):
+            with open(folder + "/" + key + endFileName + ".csv", mode="r") as file:
+                writer = csv.DictReader(file)
+                times[key] = list(writer)
+
+def alreadyMeasure(times, inp):
+    input_str = {key: str(inp[key]) for key in inp.keys()}
+    for t in times["encrypt"]:
+        exists = True
+        for key in input_str.keys():
+            if t[key] != input_str[key]:
+                exists = False
+                break
+        if exists == True:
+            return True
+
+    return False
 
 def main():
     parser = argparse.ArgumentParser()
@@ -173,26 +233,32 @@ def main():
     args = parser.parse_args()
     print(args.pathMeasures)
 
-    numLines = [1]#, 5, 10, 100, 1000, 100000]#, 10, 50, 100, 1000, 10000]
-    numCols = [1, 3]#, 5, 10, 100]
+    numLines = [1, 5, 10, 100, 500]#, 10, 50, 100, 1000, 10000]
+    numCols = [1, 3, 5, 10, 100]
     colName = ["col"]#, "cooooooooooooooooooooooooooooooooooooooooooooooooooooooool"]
     attrSpread = [10, 1000]#, 10, 100]
     times = {"setup" : [], "keygen" : [], "encrypt" : [], "genTrap":[], "search" : []}
+    readMeasures(times, args.pathMeasures, endFileName = str(args.seed))
     random.seed(args.seed)
     for c in numCols:
         for l in numLines:
             for cN in colName:
                 for aS in attrSpread:
                     inputs = {"numCols" : c, "numLines" : l, "colName" : cN, "attrSpread" : aS}
-                    print(inputs)
-                    doMeasures(inputs, times)
-
-    writeKeysToFiles(times, args.pathMeasures, endFileName = str(args.seed))
+                    print(inputs, end = "=>")
+                    if not alreadyMeasure(times, inputs):
+                        print("not measure")
+                        time = doMeasuresOne(inputs)
+                        writeMeasures(time, args.pathMeasures, endFileName = str(args.seed))
+                    else:
+                        print("measure")
+    #writeKeysToFiles(times, args.pathMeasures, endFileName = str(args.seed))
 main()
 #1)crio db
 #2)Produzo umas 5 queries para essa db => Round de queries
 #3)Rodo todos os rounds de queries
 #4)Conto os tempos e guardo em um ficheiro
+
 
 
 
