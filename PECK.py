@@ -47,7 +47,7 @@ class PECK(ABEnc):
         CT["C"] = r * pk["P"]
 
         for name, value in Keyword.items():
-            CT[name] = pair(r*group.hash(value, G1), pk["Y1"])
+            CT[name] = pair(r*group.hash(name + value, G1), pk["Y1"])
         #print(CT)
         return CT
     
@@ -57,8 +57,8 @@ class PECK(ABEnc):
         u = group.random(ZR)
         aux = msk["s1"] / ( msk["s2"] + u)
         for dictEntryP in Pol:
-            _, val = next(iter(dictEntryP.items())) #get entry form dict => key:row
-            T1.append(group.hash(val, G1) * aux)
+            name, val = next(iter(dictEntryP.items())) #get entry form dict => key:row
+            T1.append(group.hash(name + val, G1) * aux)
         T2 = u
         
         return {"T1" : T1, "T2":T2}
@@ -103,10 +103,10 @@ def main():
     #Delta = ["School", "Pos"]
     #Weights = [[0, 1]]
     Policy_Matrix = [] 
-    Policy = [{'col3': '4'}, {'col2': '10'}, {'col0': '8'}, {'col1': '9'}]
-    Keyword = {'col0': '2', 'col1': '6', 'col2': '9', 'col3': '4', 'col4': '7', 'col5': '1', 'col6': '1', 'col7': '8', 'col8': '0', 'col9': '1'}
-    Delta = ['col3', 'col2', 'col0', 'col1']
-    Weights = [[2, 3, 1], [0]]
+    Policy = [{'col0': '5'}, {'col1': '0'}]
+    Keyword = {'col0': '5', 'col1': '0', 'col2': '3', 'col3': '0', 'col4': '0'}
+    Delta = ['col0', 'col1']
+    Weights = [[0, 1]]
     
     kpabks = PECK(groupObj)
 
