@@ -86,7 +86,7 @@ class CWDWL17(ABEnc):
         return CT
     
     #assumptions: Pol and Pol_M are a list of dicts with the same number of entries and matching keyword names
-    def keygen(self, msk, pk_s, Pol, Pol_M):
+    def keygen(self, msk, pk_s, Pol, Pol_M, wheights = [[]]):
         H = Hash(group)
         SK = dict()
         s, y2, y3 = msk["alpha"], group.random(), group.random()
@@ -132,7 +132,7 @@ class CWDWL17(ABEnc):
 
         return SK
 
-    def decrypt(self, pk, sk_s, SK, CT, Delta, wheights = [[]]):
+    def decrypt(self, pk, sk_s, SK, CT, Delta, weights = [[]]):
         H = Hash(group)
         Y = 1
         X = pair(SK["T"], SK["T_hat"]) ** sk_s
@@ -153,7 +153,7 @@ class CWDWL17(ABEnc):
             Y *= pair(CT[name]["F2"], sk_attr["T6"])
             attrQuery.append(Y)
         
-        for query in wheights:
+        for query in weights:
             evalQuery = 1
             for wi in query:
                 evalQuery*=attrQuery[wi]
@@ -166,14 +166,17 @@ def main():
     #Get the eliptic curve with the bilinear mapping feature needed.
     #groupObj = PairingGroup('MNT224')
     groupObj = PairingGroup('BN254')
-    Policy_Matrix = [{'School':[1, 1, 0]}, {"Pos":[0, -1, 0]}]
-    Policy = [{'School':"NSYSU"}, {"Pos":"Teacher"}]
-    Keyword = {"School":"NSYSU", "Pos":"Teacher"}
-    Delta = ["School", "Pos"]
-
+    #Policy_Matrix = [{'School':[1, 1, 0]}, {"Pos":[0, -1, 0]}]
+    #Policy = [{'School':"NSYSU"}, {"Pos":"Teacher"}]
+    #Keyword = {"School":"NSYSU", "Pos":"Teacher"}
+    #Delta = ["School", "Pos"]
+    #Weights = [[0, 1]]
+    Policy_Matrix = [{'col3': [1, 0, 0]}, {'col2': [0, -1, 0]}, {'col0': [1, 1, 1]}, {'col1': [0, 0, -1]}] 
+    Policy = [{'col3': '4'}, {'col2': '10'}, {'col0': '8'}, {'col1': '9'}]
+    Keyword = {'col0': '2', 'col1': '6', 'col2': '9', 'col3': '4', 'col4': '7', 'col5': '1', 'col6': '1', 'col7': '8', 'col8': '0', 'col9': '1'}
+    Delta =  ['col3', 'col2', 'col0', 'col1']
+    Weights = [[2, 3, 1], [0]]
     
-    test_time = 100
-
     kpabks = CWDWL17(groupObj)
 
     (msk, pk) = kpabks.setup()
@@ -181,9 +184,9 @@ def main():
     CT = kpabks.encrypt(pk, Keyword)
     SK = kpabks.keygen(msk, pk_s, Policy, Policy_Matrix)
     start = time.time()
-    tmp = kpabks.decrypt(pk, sk_s, SK, CT, Delta, [[0, 1]])
+    tmp = kpabks.decrypt(pk, sk_s, SK, CT, Delta, Weights)
     end = time.time()
-    print("Decryption: ", (end - start))
+    print("Decryption: ", (end - start)*1000)
     print(tmp)
 
 if __name__ == '__main__':
